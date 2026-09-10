@@ -88,7 +88,5 @@ def run_flask():
 app_flask.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
 
 if __name__ == "__main__":
-    # Chạy Flask trong thread phụ
     threading.Thread(target=run_flask, daemon=True).start()
-    # Chạy bot Telegram ở main thread (quan trọng)
     application.run_polling()
