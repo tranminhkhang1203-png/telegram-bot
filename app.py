@@ -32,51 +32,52 @@ def process_text(text):
             i += 1
             continue
 
-        # Token dạng "12b20n" (liền) -> xử lý số tiền ở cuối
-        match = re.match(r'^(.*?)(\d+([.,]\d+)?)([kn]?)$', token)
-        if match and not re.match(r'^\d+([.,]\d+)?$', token):
-            prefix = match.group(1)
+        # Token dạng "dd25n", "lo2.5n" (từ khóa + số tiền liền)
+        match = re.match(r'^([a-zA-Z_đ]+)(\d+([.,]\d+)?)([kn]?)$', token)
+        if match:
+            keyword = match.group(1)
             so_tien = match.group(2)
             unit = match.group(4) or 'n'
-            # Kiểm tra prefix có chứa từ khóa loại trừ không
-            if any(ex in prefix for ex in EXCLUDED):
+            if keyword in EXCLUDED:
                 output.append(token)
                 i += 1
                 continue
             new_tien = tinh_tien(so_tien)
             if new_tien:
-                output.append(prefix + new_tien + unit)
+                output.append(keyword + new_tien + unit)
                 i += 1
                 continue
             output.append(token)
             i += 1
             continue
 
-        # Token dạng "50n" (chỉ số tiền)
-        match2 = re.match(r'^(\d+([.,]\d+)?)([kn]?)$', token)
-        if match2:
-            so_tien = match2.group(1)
-            unit = match2.group(3) or 'n'
-            # Kiểm tra token trước có phải từ khóa loại trừ
-            prev = None
-            j = i - 1
-            while j >= 0:
-                if re.match(r'^\s+$', tokens[j]):
-                    j -= 1
-                    continue
-                prev = tokens[j]
-                break
-            if prev and prev in EXCLUDED:
-                output.append(token)
-                i += 1
-                continue
-            new_tien = tinh_tien(so_tien)
-            if new_tien:
-                output.append(new_tien + unit)
-                i += 1
-                continue
+        # Token là từ khóa (b, dd, lô, lo, ...) đứng riêng
+        if re.match(r'^[a-zA-Z_đ]+$', token):
+            keyword = token
             output.append(token)
             i += 1
+            # Tìm số tiền ngay sau (bỏ qua khoảng trắng)
+            j = i
+            while j < len(tokens) and re.match(r'^\s+$', tokens[j]):
+                j += 1
+            if j < len(tokens):
+                next_token = tokens[j]
+                match2 = re.match(r'^(\d+([.,]\d+)?)([kn]?)$', next_token)
+                if match2:
+                    so_tien = match2.group(1)
+                    unit = match2.group(3) or 'n'
+                    if keyword in EXCLUDED:
+                        for k in range(i, j+1):
+                            output.append(tokens[k])
+                        i = j + 1
+                        continue
+                    new_tien = tinh_tien(so_tien)
+                    if new_tien:
+                        for k in range(i, j):
+                            output.append(tokens[k])
+                        output.append(new_tien + unit)
+                        i = j + 1
+                        continue
             continue
 
         output.append(token)
