@@ -23,67 +23,35 @@ def tinh_tien(so_tien):
     return formatted
 
 def process_text(text):
-    # Tách token giữ khoảng trắng
-    tokens = re.split(r'(\s+)', text)
-    output = []
-    i = 0
-    while i < len(tokens):
-        token = tokens[i]
-        if re.match(r'^\s+$', token):
-            output.append(token)
-            i += 1
-            continue
-
-        # Nếu token là số đánh
-        match_so = re.match(r'^(\d+)([.,]\d+)?$', token)
-        if match_so and len(match_so.group(1)) == 2:
-            so_danh = token
-            # Gom các token tiếp theo thành chuỗi không dấu cách (tối đa 3 token)
-            j = i + 1
-            buffer = ""
-            used_indices = []
-            while j < len(tokens) and len(buffer) < 20:
-                if re.match(r'^\s+$', tokens[j]):
-                    j += 1
-                    continue
-                buffer += tokens[j]
-                used_indices.append(j)
-                j += 1
-                # Thử match từ buffer
-                match = re.match(r'^([a-zA-Z_đ]+)(\d+([.,]\d+)?)([kn])?', buffer)
-                if match:
-                    keyword = match.group(1)
-                    so_tien = match.group(2)
-                    unit = match.group(4) or 'n'
-                    if keyword in EXCLUDED or keyword not in KEYWORDS:
-                        break
-                    new_tien = tinh_tien(so_tien)
-                    if new_tien is None:
-                        break
-                    # Giữ nguyên khoảng trắng gốc giữa số đánh và từ khóa
-                    output.append(so_danh)
-                    # Thêm lại các token khoảng trắng giữa số đánh và từ khóa
-                    for k in range(i + 1, used_indices[0]):
-                        output.append(tokens[k])
-                    # Thêm từ khóa + số tiền mới
-                    output.append(keyword + new_tien + unit)
-                    # Phần còn lại của buffer (nếu có) giữ nguyên
-                    remaining = buffer[match.end():]
-                    if remaining:
-                        output.append(remaining)
-                    i = used_indices[-1] + 1
-                    break
-            else:
-                # Không tìm thấy match
-                output.append(token)
-                i += 1
-                continue
-            continue
-
-        output.append(token)
-        i += 1
-
-    return ''.join(output)
+    # Dùng regex để tìm tất cả các cụm: số đánh (2 chữ số) + (khoảng trắng tùy ý) + từ khóa + số tiền + đơn vị
+    # Pattern: (\d{2})  (số đánh 2 chữ số)
+    #          \s*      (khoảng trắng tùy ý)
+    #          (keyword) (từ khóa)
+    #          \s*      (khoảng trắng tùy ý)
+    #          (\d+)    (số tiền)
+    #          ([kn]?)  (đơn vị)
+    
+    pattern = r'(\d{2})(\s*)([a-zA-Z_đ]+)(\s*)(\d+)([kn]?)'
+    
+    def replace_match(m):
+        so_danh = m.group(1)
+        space1 = m.group(2)
+        keyword = m.group(3)
+        space2 = m.group(4)
+        so_tien = m.group(5)
+        unit = m.group(6) or 'n'
+        
+        if keyword in EXCLUDED or keyword not in KEYWORDS:
+            return m.group(0)
+        
+        new_tien = tinh_tien(so_tien)
+        if new_tien is None:
+            return m.group(0)
+        
+        return so_danh + space1 + keyword + space2 + new_tien + unit
+    
+    result = re.sub(pattern, replace_match, text)
+    return result
 
 app_flask = Flask(__name__)
 
