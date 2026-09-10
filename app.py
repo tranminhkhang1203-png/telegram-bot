@@ -23,29 +23,26 @@ def tinh_tien(so_tien):
     return formatted
 
 def process_text(text):
-    tokens = re.split(r'(\s+)', text)
-    output = []
+    # Bước 1: Tách thành các từ (bỏ qua khoảng trắng)
+    words = text.split()
+    result = []
     so_danh = None
     
-    for token in tokens:
-        if re.match(r'^\s+$', token):
-            output.append(token)
+    for word in words:
+        # Nếu word là số 2 chữ số
+        if re.match(r'^\d{2}$', word):
+            so_danh = word
+            result.append(word)
             continue
         
-        # Nếu token là số 2 chữ số
-        if re.match(r'^\d{2}$', token):
-            so_danh = token
-            output.append(token)
-            continue
-        
-        # Nếu token là số 3 chữ số trở lên
-        if re.match(r'^\d{3,}$', token):
+        # Nếu word là số 3 chữ số trở lên
+        if re.match(r'^\d{3,}$', word):
             so_danh = None
-            output.append(token)
+            result.append(word)
             continue
         
-        # Nếu token là từ khóa + số tiền (b50n, dd100n)
-        match = re.match(r'^([a-zA-Z_đ]+)(\d+)([kn]?)$', token)
+        # Nếu word là từ khóa + số tiền (dạng b50n, dd100n, lo2n)
+        match = re.match(r'^([a-zA-Z_đ]+)(\d+)([kn]?)$', word)
         if match:
             keyword = match.group(1)
             so_tien = match.group(2)
@@ -53,14 +50,15 @@ def process_text(text):
             if so_danh and keyword not in EXCLUDED and keyword in KEYWORDS:
                 new_tien = tinh_tien(so_tien)
                 if new_tien:
-                    output.append(keyword + new_tien + unit)
+                    result.append(keyword + new_tien + unit)
                     continue
-            output.append(token)
+            result.append(word)
             continue
         
-        output.append(token)
+        # Các từ khác giữ nguyên
+        result.append(word)
     
-    return ''.join(output)
+    return ' '.join(result)
 
 app_flask = Flask(__name__)
 
