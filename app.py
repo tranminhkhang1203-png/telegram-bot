@@ -23,29 +23,44 @@ def tinh_tien(so_tien):
     return formatted
 
 def process_text(text):
-    # Regex: số đánh 2 chữ số, khoảng trắng tùy ý, từ khóa, khoảng trắng tùy ý, số tiền, đơn vị
-    pattern = r'(\d{2})(\s*)([a-zA-Z_đ]+)(\s*)(\d+)([kn]?)'
+    tokens = re.split(r'(\s+)', text)
+    output = []
+    so_danh = None
     
-    def replace_match(m):
-        so_danh = m.group(1)
-        space1 = m.group(2)
-        keyword = m.group(3)
-        space2 = m.group(4)
-        so_tien = m.group(5)
-        unit = m.group(6) or 'n'
+    for token in tokens:
+        if re.match(r'^\s+$', token):
+            output.append(token)
+            continue
         
-        if keyword in EXCLUDED:
-            return m.group(0)
-        if keyword not in KEYWORDS:
-            return m.group(0)
+        # Nếu token là số 2 chữ số
+        if re.match(r'^\d{2}$', token):
+            so_danh = token
+            output.append(token)
+            continue
         
-        new_tien = tinh_tien(so_tien)
-        if new_tien is None:
-            return m.group(0)
+        # Nếu token là số 3 chữ số trở lên
+        if re.match(r'^\d{3,}$', token):
+            so_danh = None
+            output.append(token)
+            continue
         
-        return so_danh + space1 + keyword + space2 + new_tien + unit
+        # Nếu token là từ khóa + số tiền (b50n, dd100n)
+        match = re.match(r'^([a-zA-Z_đ]+)(\d+)([kn]?)$', token)
+        if match:
+            keyword = match.group(1)
+            so_tien = match.group(2)
+            unit = match.group(3) or 'n'
+            if so_danh and keyword not in EXCLUDED and keyword in KEYWORDS:
+                new_tien = tinh_tien(so_tien)
+                if new_tien:
+                    output.append(keyword + new_tien + unit)
+                    continue
+            output.append(token)
+            continue
+        
+        output.append(token)
     
-    return re.sub(pattern, replace_match, text)
+    return ''.join(output)
 
 app_flask = Flask(__name__)
 
