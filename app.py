@@ -40,6 +40,9 @@ def home():
     return "Bot is running!"
 
 @app_flask.route('/health')
+@app_flask.route('/ping')
+def ping():
+    return "pong"
 def health():
     return "OK"
 
