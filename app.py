@@ -40,11 +40,12 @@ def home():
     return "Bot is running!"
 
 @app_flask.route('/health')
+def health():
+    return "OK"
+
 @app_flask.route('/ping')
 def ping():
     return "pong"
-def health():
-    return "OK"
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 if not TOKEN:
