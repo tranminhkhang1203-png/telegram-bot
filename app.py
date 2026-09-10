@@ -8,79 +8,120 @@ from flask import Flask
 KEYWORDS = ['b', 'd', 'dd', 'bao', 'bl', 'lô', 'lo', '₫', 'đ', 'dđ', 'đđ', 'dauduoi', 'dau dui', 'duoi', 'đầu', 'đuôi']
 EXCLUDED = ['dx', 'dt', 'da', 'xc', 'xdao']
 
-def xu_ly_token(so_danh, keyword, so_tien, unit, original_token):
-    if keyword in EXCLUDED:
-        return original_token
-    if keyword not in KEYWORDS:
-        return original_token
-    so_danh_clean = so_danh.split('.')[0].split(',')[0]
-    if len(so_danh_clean) != 2:
-        return original_token
-    amount = float(so_tien.replace(',', '.'))
+def tinh_tien(so_tien):
+    """Nhân 0.93, làm tròn 1 số, bỏ .0"""
+    try:
+        amount = float(so_tien.replace(',', '.'))
+    except:
+        return None
     if amount <= 0:
-        return original_token
+        return None
     new_amount = amount * 0.93
     rounded = round(new_amount * 10) / 10
     formatted = str(rounded)
     if formatted.endswith('.0'):
         formatted = formatted[:-2]
-    return so_danh + keyword + formatted + unit
+    return formatted
 
 def process_text(text):
-    # Bước 1: Xóa tất cả dấu cách, dấu phẩy, dấu chấm giữa số và từ khóa
-    # Nhưng giữ nguyên cấu trúc token
-    # Cách đơn giản: thay thế các dấu phân cách bằng khoảng trắng, rồi tách token
-    # Nhưng ta cần giữ nguyên số thập phân (nếu có)
-    
-    # Tách chuỗi thành các token dựa trên khoảng trắng
     tokens = re.split(r'(\s+)', text)
     output = []
     i = 0
     while i < len(tokens):
         token = tokens[i]
+        
+        # Giữ nguyên khoảng trắng
         if re.match(r'^\s+$', token):
             output.append(token)
             i += 1
             continue
         
-        # Trường hợp 1: token có dạng số + từ khóa + số tiền + đơn vị
-        match = re.match(r'^(\d+([.,]\d+)?)([a-zA-Z_đ]+)(\d+([.,]\d+)?)([kn])?$', token)
-        if match:
-            so_danh = match[1]
-            keyword = match[3]
-            so_tien = match[4]
-            unit = match[6] or 'n'
-            output.append(xu_ly_token(so_danh, keyword, so_tien, unit, token))
-            i += 1
-            continue
-        
-        # Trường hợp 2: token là số (có thể có dấu phẩy/chấm)
-        if re.match(r'^\d+([.,]\d+)?$', token):
+        # Kiểm tra token có phải là số đánh (có thể kèm dấu . ,)
+        match_so = re.match(r'^(\d+)([.,]\d+)?$', token)
+        if match_so:
             so_danh = token
-            # Kiểm tra token tiếp theo (bỏ qua khoảng trắng)
+            so_danh_clean = match_so.group(1)
+            
+            # Nếu số đánh không phải 2 chữ số -> giữ nguyên, bỏ qua
+            if len(so_danh_clean) != 2:
+                output.append(token)
+                i += 1
+                continue
+            
+            # Tìm từ khóa và số tiền phía sau (bỏ qua khoảng trắng)
             j = i + 1
+            space_tokens = []
             while j < len(tokens) and re.match(r'^\s+$', tokens[j]):
+                space_tokens.append(tokens[j])
                 j += 1
-            if j < len(tokens):
-                next_token = tokens[j]
-                # Token tiếp theo có dạng từ khóa + số tiền
-                match2 = re.match(r'^([a-zA-Z_đ]+)(\d+([.,]\d+)?)([kn])?$', next_token)
-                if match2:
-                    keyword = match2[1]
-                    so_tien = match2[2]
-                    unit = match2[4] or 'n'
-                    new_token = xu_ly_token(so_danh, keyword, so_tien, unit, so_danh + next_token)
-                    # Thêm khoảng trắng giữa số và từ khóa? Không, ghép liền
-                    output.append(new_token)
-                    i = j + 1
+            
+            if j >= len(tokens):
+                output.append(token)
+                i += 1
+                continue
+            
+            next_token = tokens[j]
+            
+            # Trường hợp A: next_token có dạng "keyword + số tiền + đơn vị" (vd: b50n, lô100n)
+            match_a = re.match(r'^([a-zA-Z_đ]+)(\d+([.,]\d+)?)([kn])?$', next_token)
+            if match_a:
+                keyword = match_a.group(1)
+                so_tien = match_a.group(2)
+                unit = match_a.group(4) or 'n'
+                
+                if keyword in EXCLUDED or keyword not in KEYWORDS:
+                    output.append(token)
+                    i += 1
                     continue
+                
+                new_tien = tinh_tien(so_tien)
+                if new_tien is None:
+                    output.append(token)
+                    i += 1
+                    continue
+                
+                # Giữ nguyên dấu cách giữa số đánh và từ khóa
+                output.append(so_danh)
+                for sp in space_tokens:
+                    output.append(sp)
+                output.append(keyword + new_tien + unit)
+                i = j + 1
+                continue
+            
+            # Trường hợp B: next_token là từ khóa đứng riêng (vd: lô, d, b)
+            if next_token in KEYWORDS and next_token not in EXCLUDED:
+                keyword = next_token
+                # Tìm số tiền phía sau (bỏ qua khoảng trắng)
+                k = j + 1
+                space_tokens2 = []
+                while k < len(tokens) and re.match(r'^\s+$', tokens[k]):
+                    space_tokens2.append(tokens[k])
+                    k += 1
+                
+                if k < len(tokens):
+                    next_token2 = tokens[k]
+                    match_b = re.match(r'^(\d+([.,]\d+)?)([kn])?$', next_token2)
+                    if match_b:
+                        so_tien = match_b.group(1)
+                        unit = match_b.group(3) or 'n'
+                        new_tien = tinh_tien(so_tien)
+                        if new_tien is not None:
+                            output.append(so_danh)
+                            for sp in space_tokens:
+                                output.append(sp)
+                            output.append(keyword)
+                            for sp in space_tokens2:
+                                output.append(sp)
+                            output.append(new_tien + unit)
+                            i = k + 1
+                            continue
+            
+            # Nếu không khớp -> giữ nguyên số
             output.append(token)
             i += 1
             continue
         
-        # Trường hợp 3: token là từ khóa + số tiền (không có số đánh đứng trước)
-        # Nhưng nếu token trước đó là số, đã xử lý ở trên
-        # Ở đây chỉ giữ nguyên
+        # Các token khác giữ nguyên
         output.append(token)
         i += 1
     
