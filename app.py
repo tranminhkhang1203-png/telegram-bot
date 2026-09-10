@@ -5,7 +5,6 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from flask import Flask
 
-KEYWORDS = ['b', 'd', 'dd', 'bao', 'bl', 'lô', 'lo', '₫', 'đ', 'dđ', 'đđ', 'dauduoi', 'dau', 'dui', 'duoi', 'đầu', 'đuôi']
 EXCLUDED = ['dx', 'dt', 'da', 'xc', 'xdao']
 
 def tinh_tien(so_tien):
@@ -23,42 +22,47 @@ def tinh_tien(so_tien):
     return formatted
 
 def process_text(text):
-    # Bước 1: Tách thành các từ (bỏ qua khoảng trắng)
-    words = text.split()
-    result = []
-    so_danh = None
-    
-    for word in words:
-        # Nếu word là số 2 chữ số
-        if re.match(r'^\d{2}$', word):
-            so_danh = word
-            result.append(word)
+    tokens = re.split(r'(\s+)', text)
+    output = []
+    i = 0
+    while i < len(tokens):
+        token = tokens[i]
+        if re.match(r'^\s+$', token):
+            output.append(token)
+            i += 1
             continue
-        
-        # Nếu word là số 3 chữ số trở lên
-        if re.match(r'^\d{3,}$', word):
-            so_danh = None
-            result.append(word)
-            continue
-        
-        # Nếu word là từ khóa + số tiền (dạng b50n, dd100n, lo2n)
-        match = re.match(r'^([a-zA-Z_đ]+)(\d+)([kn]?)$', word)
+
+        # Token có dạng "số tiền + đơn vị" (50n, 100n, 2.5n)
+        match = re.match(r'^(\d+([.,]\d+)?)([kn]?)$', token)
         if match:
-            keyword = match.group(1)
-            so_tien = match.group(2)
+            so_tien = match.group(1)
             unit = match.group(3) or 'n'
-            if so_danh and keyword not in EXCLUDED and keyword in KEYWORDS:
-                new_tien = tinh_tien(so_tien)
-                if new_tien:
-                    result.append(keyword + new_tien + unit)
+            # Kiểm tra token trước đó có phải từ khóa loại trừ không
+            prev_word = None
+            j = i - 1
+            while j >= 0:
+                if re.match(r'^\s+$', tokens[j]):
+                    j -= 1
                     continue
-            result.append(word)
+                prev_word = tokens[j]
+                break
+            if prev_word and prev_word in EXCLUDED:
+                output.append(token)
+                i += 1
+                continue
+            new_tien = tinh_tien(so_tien)
+            if new_tien:
+                output.append(new_tien + unit)
+                i += 1
+                continue
+            output.append(token)
+            i += 1
             continue
-        
-        # Các từ khác giữ nguyên
-        result.append(word)
-    
-    return ' '.join(result)
+
+        output.append(token)
+        i += 1
+
+    return ''.join(output)
 
 app_flask = Flask(__name__)
 
@@ -77,7 +81,7 @@ if not TOKEN:
 application = Application.builder().token(TOKEN).build()
 
 async def start(update: Update, context):
-    await update.message.reply_text("Gửi văn bản số đề, bot xử lý theo luật 0.93.")
+    await update.message.reply_text("Gửi văn bản, bot xử lý theo luật 0.93.")
 
 async def handle(update: Update, context):
     result = process_text(update.message.text)
