@@ -5,6 +5,8 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from flask import Flask
 
+EXCLUDED = ['dx', 'dt', 'da', 'xc', 'xdao']
+
 def tinh_tien(so_tien):
     try:
         amount = float(so_tien.replace(',', '.'))
@@ -20,12 +22,15 @@ def tinh_tien(so_tien):
     return formatted
 
 def process_text(text):
-    # Tìm tất cả số đứng trước n hoặc k, nhân 0.93
     pattern = r'(\d+([.,]\d+)?)([nk])'
     
     def replace_match(m):
         so_tien = m.group(1)
         unit = m.group(3)
+        start = m.start()
+        prefix = text[max(0, start-10):start]
+        if any(ex in prefix for ex in EXCLUDED):
+            return m.group(0)
         new_tien = tinh_tien(so_tien)
         if new_tien:
             return new_tien + unit
