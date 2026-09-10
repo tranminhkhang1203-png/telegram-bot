@@ -5,6 +5,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from flask import Flask
 
+KEYWORDS = ['b', 'd', 'dd', 'bao', 'bl', 'lô', 'lo', '₫', 'đ', 'dđ', 'đđ', 'dauduoi', 'dau', 'dui', 'duoi', 'đầu', 'đuôi']
 EXCLUDED = ['dx', 'dt', 'da', 'xc', 'xdao']
 
 def tinh_tien(so_tien):
@@ -32,31 +33,34 @@ def process_text(text):
             i += 1
             continue
 
-        # Token có dạng "số tiền + đơn vị" (50n, 100n, 2.5n)
-        match = re.match(r'^(\d+([.,]\d+)?)([kn]?)$', token)
-        if match:
-            so_tien = match.group(1)
-            unit = match.group(3) or 'n'
-            # Kiểm tra token trước đó có phải từ khóa loại trừ không
-            prev_word = None
-            j = i - 1
-            while j >= 0:
-                if re.match(r'^\s+$', tokens[j]):
-                    j -= 1
-                    continue
-                prev_word = tokens[j]
-                break
-            if prev_word and prev_word in EXCLUDED:
-                output.append(token)
-                i += 1
-                continue
-            new_tien = tinh_tien(so_tien)
-            if new_tien:
-                output.append(new_tien + unit)
-                i += 1
-                continue
+        # Token là từ khóa (có thể là b, dd, lô, dx, ...)
+        if token in KEYWORDS or token in EXCLUDED:
+            keyword = token
             output.append(token)
             i += 1
+            # Tìm số tiền ngay sau (bỏ qua khoảng trắng)
+            j = i
+            while j < len(tokens) and re.match(r'^\s+$', tokens[j]):
+                j += 1
+            if j < len(tokens):
+                next_token = tokens[j]
+                match = re.match(r'^(\d+([.,]\d+)?)([kn]?)$', next_token)
+                if match:
+                    so_tien = match.group(1)
+                    unit = match.group(3) or 'n'
+                    if keyword in EXCLUDED:
+                        # Giữ nguyên số tiền
+                        output.append(tokens[i:j+1])
+                        i = j + 1
+                        continue
+                    new_tien = tinh_tien(so_tien)
+                    if new_tien:
+                        # Thêm khoảng trắng giữa từ khóa và số tiền
+                        for k in range(i, j):
+                            output.append(tokens[k])
+                        output.append(new_tien + unit)
+                        i = j + 1
+                        continue
             continue
 
         output.append(token)
