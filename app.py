@@ -27,6 +27,12 @@ def xu_ly_token(so_danh, keyword, so_tien, unit, original_token):
     return so_danh + keyword + formatted + unit
 
 def process_text(text):
+    # Bước 1: Xóa tất cả dấu cách, dấu phẩy, dấu chấm giữa số và từ khóa
+    # Nhưng giữ nguyên cấu trúc token
+    # Cách đơn giản: thay thế các dấu phân cách bằng khoảng trắng, rồi tách token
+    # Nhưng ta cần giữ nguyên số thập phân (nếu có)
+    
+    # Tách chuỗi thành các token dựa trên khoảng trắng
     tokens = re.split(r'(\s+)', text)
     output = []
     i = 0
@@ -36,6 +42,8 @@ def process_text(text):
             output.append(token)
             i += 1
             continue
+        
+        # Trường hợp 1: token có dạng số + từ khóa + số tiền + đơn vị
         match = re.match(r'^(\d+([.,]\d+)?)([a-zA-Z_đ]+)(\d+([.,]\d+)?)([kn])?$', token)
         if match:
             so_danh = match[1]
@@ -45,24 +53,37 @@ def process_text(text):
             output.append(xu_ly_token(so_danh, keyword, so_tien, unit, token))
             i += 1
             continue
+        
+        # Trường hợp 2: token là số (có thể có dấu phẩy/chấm)
         if re.match(r'^\d+([.,]\d+)?$', token):
             so_danh = token
-            if i + 1 < len(tokens):
-                next_token = tokens[i + 1]
+            # Kiểm tra token tiếp theo (bỏ qua khoảng trắng)
+            j = i + 1
+            while j < len(tokens) and re.match(r'^\s+$', tokens[j]):
+                j += 1
+            if j < len(tokens):
+                next_token = tokens[j]
+                # Token tiếp theo có dạng từ khóa + số tiền
                 match2 = re.match(r'^([a-zA-Z_đ]+)(\d+([.,]\d+)?)([kn])?$', next_token)
                 if match2:
                     keyword = match2[1]
                     so_tien = match2[2]
                     unit = match2[4] or 'n'
                     new_token = xu_ly_token(so_danh, keyword, so_tien, unit, so_danh + next_token)
+                    # Thêm khoảng trắng giữa số và từ khóa? Không, ghép liền
                     output.append(new_token)
-                    i += 2
+                    i = j + 1
                     continue
             output.append(token)
             i += 1
             continue
+        
+        # Trường hợp 3: token là từ khóa + số tiền (không có số đánh đứng trước)
+        # Nhưng nếu token trước đó là số, đã xử lý ở trên
+        # Ở đây chỉ giữ nguyên
         output.append(token)
         i += 1
+    
     return ''.join(output)
 
 app_flask = Flask(__name__)
