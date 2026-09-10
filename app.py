@@ -5,7 +5,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from flask import Flask
 
-KEYWORDS = ['b', 'd', 'dd', 'bao', 'bl', 'lô', 'lo', '₫', 'đ', 'dđ', 'đđ', 'dauduoi', 'dau dui', 'duoi', 'đầu', 'đuôi']
+KEYWORDS = ['b', 'd', 'dd', 'bao', 'bl', 'lô', 'lo', '₫', 'đ', 'dđ', 'đđ', 'dauduoi', 'dau', 'dui', 'duoi', 'đầu', 'đuôi']
 EXCLUDED = ['dx', 'dt', 'da', 'xc', 'xdao']
 
 def tinh_tien(so_tien):
@@ -23,14 +23,7 @@ def tinh_tien(so_tien):
     return formatted
 
 def process_text(text):
-    # Dùng regex để tìm tất cả các cụm: số đánh (2 chữ số) + (khoảng trắng tùy ý) + từ khóa + số tiền + đơn vị
-    # Pattern: (\d{2})  (số đánh 2 chữ số)
-    #          \s*      (khoảng trắng tùy ý)
-    #          (keyword) (từ khóa)
-    #          \s*      (khoảng trắng tùy ý)
-    #          (\d+)    (số tiền)
-    #          ([kn]?)  (đơn vị)
-    
+    # Regex: số đánh 2 chữ số, khoảng trắng tùy ý, từ khóa, khoảng trắng tùy ý, số tiền, đơn vị
     pattern = r'(\d{2})(\s*)([a-zA-Z_đ]+)(\s*)(\d+)([kn]?)'
     
     def replace_match(m):
@@ -41,7 +34,9 @@ def process_text(text):
         so_tien = m.group(5)
         unit = m.group(6) or 'n'
         
-        if keyword in EXCLUDED or keyword not in KEYWORDS:
+        if keyword in EXCLUDED:
+            return m.group(0)
+        if keyword not in KEYWORDS:
             return m.group(0)
         
         new_tien = tinh_tien(so_tien)
@@ -50,8 +45,7 @@ def process_text(text):
         
         return so_danh + space1 + keyword + space2 + new_tien + unit
     
-    result = re.sub(pattern, replace_match, text)
-    return result
+    return re.sub(pattern, replace_match, text)
 
 app_flask = Flask(__name__)
 
